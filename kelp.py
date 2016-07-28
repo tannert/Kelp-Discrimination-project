@@ -4,10 +4,26 @@ from matplotlib import pyplot as plt
 from matplotlib import lines as mlines
 from matplotlib import markers
 from scipy import linalg as la
-from ascii_tools import loadASCIIplot, spectral_angle
+from ascii_tools import loadPlotASCII, loadPixelsASCII, spectral_angle
 import os
 
+
+
 def import_endmembers():
+    """imports text files that have reference endmembers
+    
+    Returns:
+        giant_endmembers (ndarray): array that has giant kelp endmembers as columns
+            all text files that begin with 's_' (for south) are considered giant kelp reference endmembers
+            c_monterey.txt is also considered reference endmembers
+            
+        bull_endmembers (ndarray): array that has bull kelp endmembers as columns
+            all text files that begin with 'n_' (for north) are considered bull kelp reference endmembers
+            
+        giant_names (list): list of strings representing each of the giant kelp endemembers in giant_endmembers
+        
+        bull_names (list): list of strings representing each of the bull kelp endemembers in bull_endmembers
+    """
     filenames = filter(lambda s: s.endswith('.txt'), os.listdir('.'))
     filenames.remove('bands.txt')
     n_filenames = filter(lambda s: s.startswith('n_'), filenames)
@@ -18,37 +34,52 @@ def import_endmembers():
     bull_names = []
     
     for nfile in n_filenames:
-        data, headers = loadASCIIplot(nfile)
+        data, headers = loadPlotASCII(nfile)
         bull_endmembers += list(data.T[2:])
         bull_names += map(lambda s: nfile[:-4] + ' ' + s[s.index(':') + 2:s.index('~')] ,headers[2:])
         
     for sfile in s_filenames:
-        data, headers = loadASCIIplot(sfile)
+        data, headers = loadPlotASCII(sfile)
         giant_endmembers += list(data.T[2:])
         giant_names += map(lambda s: sfile[:-4] + ' ' + s[s.index(':') + 2:s.index('~')], headers[2:])
         
-    data, headers = loadASCIIplot('c_monterey.txt')
+    data, headers = loadPlotASCII('c_monterey.txt')
     giant_endmembers += list(data.T[2:])
     giant_names += map(lambda s: 'c_monterey ' + s[s.index(':') + 2:s.index('~')], headers[2:])
     
     return giant_endmembers, bull_endmembers, giant_names, bull_names
 
 def import_one_endmember(filename, roi_num):
-    data, header = loadASCIIplot(filename)
+    """imports just one ROI from filename
+    
+    Parameters:
+        filename (str): name of input file
+            Must be a text file
+            Support is only guaranteed for files generated using ENVI's ROI tool -> Options -> Compute statistics from ROIs -> Export -> ASCII
+            
+        roi_num (float): yeah, that's right. it's a float.  It will work if you pass it a string instead, though
+            Ex: 11.2
+            
+    Returns:
+        vector (ndarray): the average spectrum of the ROI in question
+    """
+    data, header = loadPlotASCII(filename)
     i = map(lambda s: s[s.index('kelp')+5:s.index('~')], header[2:]).index(str(roi_num))
     return data.T[i+2]
     
 def normalize(v):
+    """accepts a vector v as an ndarray and returns a scaled version of v with a norm of 1"""
     return v.astype(float)/la.norm(v)
 
 def decompose(pixel, endmembers):
-    """
-    pixel is a 1-d numpy array of length n representing the pixel to be decomposed
-    endmembers is a list of 1-d numpy arrays of length n, representing the endmembers
+    """Decomposes a pixel into a linear combination of normalized endmembers
+    Parameters:
+        pixel (ndarray): a 1-d numpy array of length n representing the pixel to be decomposed
+        endmembers (ndarray): a list of m 1-d numpy arrays of length n, representing the endmembers
     
-    returns:
-    a, a length-m 1-d ndarray of coefficients
-    pr, the norm of the remainder vector
+    Returns:
+        a (ndarray): a length-m 1-d array of coefficients
+        pr (ndarray): the 1-d length-n remainder vector
     """
     endmembers = np.array(endmembers).T
     E = np.array(map(normalize, endmembers.T)).T
@@ -67,6 +98,19 @@ def decompose(pixel, endmembers):
     return a, pr
     
 def quasi_mesma(pixel, set1, set2):
+    """Iterates through two lists of endmembers and finds the pair that best decomposes a pixel
+    
+    Parameters:
+        pixel (ndarray): the spectrum of the pixel to be decomposed
+        set1 (list): a list of endmembers (ndarrays) all belonging to the same class
+        set2 (list): a second list of endmembers (ndarrays) all belonging to the same class
+        
+    Returns:
+        smallest_res (float): the norm of the residual resulting from unmixing with the optimal endmembers
+        best_a (ndarray): a length-m 1-d array of coefficients corresponding to unmixing with the optimal endmembers
+        i (int): index of the optimal endmember from set1
+        j (int): index of the optimal endmember from set2
+    """
     smallest_res = np.inf
     for i, u in enumerate(set1):
         for j, v in enumerate(set2):
@@ -81,8 +125,32 @@ def quasi_mesma(pixel, set1, set2):
     return (smallest_res, best_a) + best_ij
     
 def classify(filename):
+    """Classifies each vector in an ROI export file according to the endmembers in import_endmembers using the projection decomposition method
+    
+    Parameters:
+        filename (str): name of input file
+            Must be a text file
+            Support is only guaranteed for files generated using ENVI's ROI tool -> Options -> Compute statistics from ROIs -> Export -> ASCII
+            
+    Returns:
+        nothing
+        
+    Prints: for each ROI
+        - the ROI name
+        - the norm of the smallest residual
+        - the optimal endmembers for unmixing
+        - the unmixing coefficients
+        - the classification (bull kelp, giant kelp, or inconclusive)
+        
+    Criteria for conclusiveness:
+        - the larger coefficient must be greater than .5
+        - the absolute value of the smaller coefficient must be less than .5
+       
+    """
     gset, bset, gnames, bnames = import_endmembers()
-    data, headers = loadASCIIplot(filename)
+    
+    
+    data, headers = loadPlotASCII(filename)
     bands = data[:,1]
     for k, v in enumerate(data.T[2:],2):
         res, a, i, j = quasi_mesma(v,gset,bset)
@@ -100,8 +168,27 @@ def classify(filename):
         print
     
 def classify_by_spectrum(filename):
+    """Classifies each vector in an ROI export file according to the endmembers in import_endmembers using spectral angle comparison
+    
+    Parameters:
+        filename (str): name of input file
+            Must be a text file
+            Support is only guaranteed for files generated using ENVI's ROI tool -> Options -> Compute statistics from ROIs -> Export -> ASCII
+            
+    Returns:
+        nothing
+        
+    Prints: for each ROI
+        - the ROI name
+        - the smallest angle when compared to all giant kelp endmembers
+        - the smallest angle when compared to all bull kelp endmembers
+        - the classification (bull kelp, giant kelp, or inconclusive)
+        
+    Criteria for conclusiveness:
+        - the difference between the lowest bull kelp angle and the lowest giant kelp angle has to be more than 4 degrees       
+    """
     gset, bset, gnames, bnames = import_endmembers()
-    data, headers = loadASCIIplot(filename)
+    data, headers = loadPlotASCII(filename)
     bands = data[:,1]
     for k, pixel in enumerate(data.T[2:],2):
     
@@ -133,8 +220,9 @@ def classify_by_spectrum(filename):
         print
            
 def test_quasi_mesma():
+    """test function for quasi_mesma above"""
     gset, bset, gnames, bnames = import_endmembers()
-    data, headers = loadASCIIplot('c_pebble_beach.txt')
+    data, headers = loadPlotASCII('c_pebble_beach.txt')
     bands = data[:,1]
     pixel = data[:,2]
     res, a, i, j = quasi_mesma(pixel,gset,bset)
@@ -153,6 +241,7 @@ def test_quasi_mesma():
     plt.show()
     
 def compare_endmembers():
+    """generates a plot of one bull kelp and one giant kelp endmember"""
     v = import_one_endmember('c_carmel.txt',1.1)
     u = import_one_endmember('n_fort_ross.txt',1.1)
     with open('bands.txt') as file:
@@ -169,6 +258,9 @@ def compare_endmembers():
 
     
 def compare_lots_of_endmembers():
+    """plots lots of endmembers at once
+    right now, this is set up to plot the band 45/band 15 ratio
+    """
     size = 1
     filenames = filter(lambda s: s.endswith('.txt'), os.listdir('.'))
     filenames.remove('bands.txt')
@@ -177,49 +269,58 @@ def compare_lots_of_endmembers():
     
     blue_line = mlines.Line2D([],[],color='blue', label = 'bull kelp')
     green_line = mlines.Line2D([],[],color='green', label = 'giant kelp')
-    # orange_line = mlines.Line2D([],[],color='orange', label = 'monterey kelp')
+    orange_line = mlines.Line2D([],[],color='orange', label = 'monterey kelp')
     
-    bands = loadASCIIplot(n_filenames[0])[0][:,1]
+    bands = loadPlotASCII(n_filenames[0])[0][:,1]
     print 'working'
     for nfile in n_filenames:
-        data, headers = loadASCIIplot(nfile)
+        data, headers = loadPlotASCII(nfile)
         for v in data.T[2:]:
-            plt.scatter(bands,v, color = 'blue', s = size)
-            # plt.scatter(0,1.*v[44]/v[14], color = 'blue')
+            # plt.scatter(bands,v, color = 'blue', s = size)
+            plt.scatter(0,1.*v[44]/v[14], color = 'blue')
             
     for sfile in s_filenames:
-        data, headers = loadASCIIplot(sfile)
+        data, headers = loadPlotASCII(sfile)
         for i, v in enumerate(data.T[2:],2):
-            if normalize(v)[4] > .08:
-                plt.scatter(data.T[1],v, color = 'red', s = size)
-                print sfile
-                print headers[i]
-            else:
-                plt.scatter(bands,v, color = 'green', s = size)
-            # plt.scatter(1,1.*v[44]/v[14], color = 'green')
+            # if normalize(v)[4] > .08:
+                # plt.scatter(data.T[1],v, color = 'red', s = size)
+                # print sfile
+                # print headers[i]
+            # else:
+                # plt.scatter(bands,v, color = 'green', s = size)
+            plt.scatter(1,1.*v[44]/v[14], color = 'green')
 
-    data, headers = loadASCIIplot('c_monterey.txt')
+    data, headers = loadPlotASCII('c_monterey.txt')
     for v in data.T[2:]:
-        plt.scatter(bands,v, color = 'green', s = size)
-        # plt.scatter(.5,1.*v[44]/v[14], color = 'orange')
-            
-    plt.legend(handles = [blue_line, green_line])#, orange_line])
+        # plt.scatter(bands,v, color = 'green', s = size)
+        plt.scatter(.5,1.*v[44]/v[14], color = 'orange')
+    
+    plt.ylabel('Rrs(773)/Rrs(501)')
+    plt.tick_params(
+        axis='x',
+        which='both',
+        bottom='off',
+        top='off',
+        labelbottom='off')
+    plt.grid(axis='y')
+    plt.legend(handles = [blue_line, green_line, orange_line])
     plt.show()
 
     
 def plot_kelp_against_endmemebers(filename): #BROKEN NOW since I changed all the filenames
+    """this one is currently broken, but only because I changed the way all the filenames are formatted"""
     filenames = os.listdir('.')
     filenames = filter(lambda s: s.endswith('.txt'),filenames)
     filenames.remove('bands.txt')
     bullkelpfilenames = filter(lambda s: s.startswith('041013'),filenames)
     giantkelpfilenames = filter(lambda s: s.startswith('041113'),filenames)
     
-    bands = loadASCIIplot(bullkelpfilenames[0])[0][:,1]
+    bands = loadPlotASCII(bullkelpfilenames[0])[0][:,1]
     
-    bullkelpdata = np.array([loadASCIIplot(e_filename)[0][:,4] for e_filename in bullkelpfilenames])
-    giantkelpdata = np.array([loadASCIIplot(e_filename)[0][:,4] for e_filename in giantkelpfilenames])
+    bullkelpdata = np.array([loadPlotASCII(e_filename)[0][:,4] for e_filename in bullkelpfilenames])
+    giantkelpdata = np.array([loadPlotASCII(e_filename)[0][:,4] for e_filename in giantkelpfilenames])
     
-    data, header = loadASCIIplot(filename)
+    data, header = loadPlotASCII(filename)
     for h in header: print h
     
     legend = []
@@ -242,7 +343,8 @@ def plot_kelp_against_endmemebers(filename): #BROKEN NOW since I changed all the
     plt.show()
     
 def concrete_grass_test():
-    data, header = loadASCIIplot('..\other endmembers\grass_concrete.txt')
+    """tests the decompose function using the concrete and grass endmembers"""
+    data, header = loadPlotASCII('grass_concrete.txt')
     concrete1 = data[:,2]
     concrete2 = data[:,3]
     grass = data[:,4]
@@ -264,7 +366,7 @@ def concrete_grass_test():
     print 'angle between concrete2 and grass:', spectral_angle(concrete2, grass)
 
 if __name__ == '__main__':
-    classify_by_spectrum('c_pebble_beach.txt')
+    test_quasi_mesma()
     
 # Randii Wessen was our JPL tour guide
     

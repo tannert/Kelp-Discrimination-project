@@ -52,12 +52,15 @@ def loadPixelsASCII(filename, coords=False):
             
     Returns:
         vectors (ndarray):
-            a two-dimensional array where each column is a pixel spectrum, and each row is a band
+            a two-dimensional array where
+            - the first column is the wavelengths of each band
+            - each column is a pixel spectrum
+            - each row is a band
         vectorcoords (list) (optional):
             a list of tuples indicating the image coordinates corresponding to the pixels being loaded
     """
-    # with open('bands.txt') as file:
-        # bands = map(float,file.read().split(', '))
+    with open('bands.txt') as file:
+        bands = map(float,file.read().split(', '))
         # band_num = dict(zip(bands,range(1,1+len(bands))))
         
     with open(filename) as file:
@@ -70,7 +73,7 @@ def loadPixelsASCII(filename, coords=False):
     lines = np.array(map(lambda l: map(int, l), lines[5::2]))
     assert lines.shape == (num_lines, num_bands*num_samples)
     
-    vectors = []
+    vectors = [np.array(bands[:num_bands])]
     vectorcoords = []
     for i, line in enumerate(lines):
         for j in range(num_samples):

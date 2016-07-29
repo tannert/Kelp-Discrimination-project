@@ -238,15 +238,18 @@ def classify_pixels(filename):
             - the unmixing coefficients
             - the classification (bull kelp, giant kelp, or inconclusive)
             
+        Plots:
+            A raster image showing classifications of the input pixels
+            
         Criteria for conclusiveness:
             - the larger coefficient must be greater than .5
             - the smaller coefficient must be less than .5
             
         Raster key:
-            -1: inconclusive
-             0: no data
-             1: bull kelp
-             2: giant kelp
+            -1: black: inconclusive
+             0: white: no data
+             1: blue:  bull kelp
+             2: green: giant kelp
            
     """
     gset, bset, gnames, bnames = import_endmembers()
@@ -254,7 +257,7 @@ def classify_pixels(filename):
     data, coords = loadPixelsASCII(filename, True)
     a, b = coords[-1]
     raster = np.zeros((a+1, b+1)).astype(int)
-    bands = data[:,0]
+    # bands = data[:,0]
     for k, v in enumerate(data.T[1:]):
         if np.any(v):
             res, a, i, j = quasi_mesma(v,gset,bset)
@@ -273,6 +276,79 @@ def classify_pixels(filename):
                 raster[coords[k]] = -1
             print
         
+    print raster
+    
+    cmap = colors.ListedColormap(['black','white','blue','green'])
+    bounds = [-1.5,-.5,.5,1.5,2.5]
+    cmap_norm = colors.BoundaryNorm(bounds, cmap.N)
+    plt.imshow(raster, interpolation = 'nearest', cmap=cmap, norm=cmap_norm)
+    plt.show()
+    
+def classify_pixels_by_spectrum(filename):
+    """Classifies each vector in an ASCII image file according to the endmembers in import_endmembers using spectral angle comparison
+    
+    Parameters:
+        filename (str): name of input file
+            Must be a text file
+            Support is only guaranteed for files generated using ENVI's ROI tool -> Options -> Compute statistics from ROIs -> Export -> ASCII
+            
+    Returns:
+        nothing
+        
+    Prints: for each pixel
+        - the image coordinates (i,j)
+        - the smallest angle when compared to all giant kelp endmembers
+        - the smallest angle when compared to all bull kelp endmembers
+        - the classification (bull kelp, giant kelp, or inconclusive)
+    
+    Plots:
+        A raster image showing classifications of the input pixels
+        
+    Criteria for conclusiveness:
+        - the difference between the lowest bull kelp angle and the lowest giant kelp angle has to be more than 4 degrees
+        
+    Raster key:
+            -1: black: inconclusive
+             0: white: no data
+             1: blue:  bull kelp
+             2: green: giant kelp
+    """
+    gset, bset, gnames, bnames = import_endmembers()
+    data, coords = loadPixelsASCII(filename, True)
+    a, b = coords[-1]
+    raster = np.zeros((a+1,b+1))
+    # bands = data[:,0]
+    for k, pixel in enumerate(data.T[1:]):
+        if np.any(pixel):
+            print filename[:-4], coords[k]
+            
+            lowest_g_dif = np.inf
+            for i, u in enumerate(gset):
+                dif = spectral_angle(u,pixel)
+                if dif < lowest_g_dif:
+                    lowest_g_dif = dif
+                    best_i = i
+                    
+            lowest_b_dif = np.inf
+            for j, v in enumerate(bset):
+                dif = spectral_angle(v,pixel)
+                if dif < lowest_b_dif:
+                    lowest_b_dif = dif
+                    best_j = j        
+                    
+            print 'smallest angle with giant kelp was', lowest_g_dif, 'with', gnames[best_i]
+            print 'smallest angle with bull kelp was', lowest_b_dif, 'with', bnames[best_j]
+            if abs(lowest_b_dif - lowest_g_dif) < 4:
+                print 'INCONCLUSIVE'
+                raster[coords[k]] = -1
+            elif lowest_b_dif < lowest_g_dif:
+                print 'bull kelp'
+                raster[coords[k]] = 1
+            elif lowest_b_dif > lowest_g_dif:
+                print 'giant kelp'
+                raster[coords[k]] = 2
+            print
+            
     print raster
     
     cmap = colors.ListedColormap(['black','white','blue','green'])
@@ -321,9 +397,6 @@ def compare_endmembers():
     plt.ylabel('Normalized Reflectance')
     plt.legend(['giant kelp','bull kelp'])
     plt.show()
-    
-    
-
     
 def compare_lots_of_endmembers():
     """plots lots of endmembers at once
@@ -374,7 +447,6 @@ def compare_lots_of_endmembers():
     plt.legend(handles = [blue_line, green_line, orange_line])
     plt.show()
 
-    
 def plot_kelp_against_endmemebers(filename): #BROKEN NOW since I changed all the filenames
     """this one is currently broken, but only because I changed the way all the filenames are formatted"""
     filenames = os.listdir('.')
@@ -437,7 +509,8 @@ if __name__ == '__main__':
     """this code runs when you run the file from the command line, as opposed to importing it as a module
     I use it for testing
     """
-    classify_pixels('carmel pixel group 3.txt')
+    classify_pixels('pebble beach pixel group 11.txt')
+    classify_pixels_by_spectrum('pebble beach pixel group 11.txt')
     
 # Randii Wessen was our JPL tour guide
     

@@ -7,6 +7,7 @@ from matplotlib import colors
 from scipy.linalg import qr, norm, inv
 from ascii_tools import loadPlotASCII, loadPixelsASCII, spectral_angle
 import os
+import sys
 
 
 
@@ -72,15 +73,17 @@ def normalize(v):
     """accepts a vector v as an ndarray and returns a scaled version of v with a norm of 1"""
     return v.astype(float)/norm(v)
 
-def decompose(pixel, endmembers):
+def decompose(pixel, endmembers, full=False):
     """Decomposes a pixel into a linear combination of normalized endmembers
     Parameters:
         pixel (ndarray): a 1-d numpy array of length n representing the pixel to be decomposed
         endmembers (ndarray): a list of m 1-d numpy arrays of length n, representing the endmembers
+        full (bool) (optional): if True, returns pe
     
     Returns:
         a (ndarray): a length-m 1-d array of coefficients
         pr (ndarray): the 1-d length-n remainder vector
+        pe (ndarray) (optional): the projection of p onto the subspace formed by endmembers
     """
     endmembers = np.array(endmembers).T
     E = np.array(map(normalize, endmembers.T)).T
@@ -96,7 +99,10 @@ def decompose(pixel, endmembers):
     a = inv(R).dot(s)
     
     # print norm(a[0]*E[:,0] + a[1]*E[:,1] + pr - p)
-    return a, pr
+    if full:
+        return a, pr, pe
+    else:
+        return a, pr
     
 def quasi_mesma(pixel, set1, set2):
     """Iterates through two lists of endmembers and finds the pair that best decomposes a pixel
@@ -186,7 +192,7 @@ def classify_by_spectrum(filename):
         - the classification (bull kelp, giant kelp, or inconclusive)
         
     Criteria for conclusiveness:
-        - the difference between the lowest bull kelp angle and the lowest giant kelp angle has to be more than 4 degrees       
+        - the difference between the lowest bull kelp angle and the lowest giant kelp angle has to be more than 2 degrees       
     """
     gset, bset, gnames, bnames = import_endmembers()
     data, headers = loadPlotASCII(filename)
@@ -212,7 +218,7 @@ def classify_by_spectrum(filename):
                 
         print 'smallest angle with giant kelp was', lowest_g_dif, 'with', gnames[best_i]
         print 'smallest angle with bull kelp was', lowest_b_dif, 'with', bnames[best_j]
-        if abs(lowest_b_dif - lowest_g_dif) < 4:
+        if abs(lowest_b_dif - lowest_g_dif) < 2:
             print 'INCONCLUSIVE'
         elif lowest_b_dif < lowest_g_dif:
             print 'bull kelp'
@@ -275,8 +281,6 @@ def classify_pixels(filename):
                 print 'INCONCLUSIVE'
                 raster[coords[k]] = -1
             print
-        
-    print raster
     
     cmap = colors.ListedColormap(['black','white','blue','green'])
     bounds = [-1.5,-.5,.5,1.5,2.5]
@@ -305,7 +309,7 @@ def classify_pixels_by_spectrum(filename):
         A raster image showing classifications of the input pixels
         
     Criteria for conclusiveness:
-        - the difference between the lowest bull kelp angle and the lowest giant kelp angle has to be more than 4 degrees
+        - the difference between the lowest bull kelp angle and the lowest giant kelp angle has to be more than 2 degrees
         
     Raster key:
             -1: black: inconclusive
@@ -338,7 +342,7 @@ def classify_pixels_by_spectrum(filename):
                     
             print 'smallest angle with giant kelp was', lowest_g_dif, 'with', gnames[best_i]
             print 'smallest angle with bull kelp was', lowest_b_dif, 'with', bnames[best_j]
-            if abs(lowest_b_dif - lowest_g_dif) < 4:
+            if abs(lowest_b_dif - lowest_g_dif) < 2:
                 print 'INCONCLUSIVE'
                 raster[coords[k]] = -1
             elif lowest_b_dif < lowest_g_dif:
@@ -348,8 +352,6 @@ def classify_pixels_by_spectrum(filename):
                 print 'giant kelp'
                 raster[coords[k]] = 2
             print
-            
-    print raster
     
     cmap = colors.ListedColormap(['black','white','blue','green'])
     bounds = [-1.5,-.5,.5,1.5,2.5]
@@ -359,7 +361,7 @@ def classify_pixels_by_spectrum(filename):
 
 
     
-   # all following functions are comparatively useless   
+   # all following functions are for development and testing
 
   
   
@@ -418,7 +420,7 @@ def compare_lots_of_endmembers():
         data, headers = loadPlotASCII(nfile)
         for v in data.T[2:]:
             # plt.scatter(bands,v, color = 'blue', s = size)
-            plt.scatter(0,1.*v[44]/v[14], color = 'blue')
+            plt.scatter(0,1.*v[39]/v[33], color = 'blue')
             
     for sfile in s_filenames:
         data, headers = loadPlotASCII(sfile)
@@ -429,14 +431,14 @@ def compare_lots_of_endmembers():
                 # print headers[i]
             # else:
                 # plt.scatter(bands,v, color = 'green', s = size)
-            plt.scatter(1,1.*v[44]/v[14], color = 'green')
+            plt.scatter(1,1.*v[39]/v[33], color = 'green')
 
     data, headers = loadPlotASCII('c_monterey.txt')
     for v in data.T[2:]:
         # plt.scatter(bands,v, color = 'green', s = size)
-        plt.scatter(.5,1.*v[44]/v[14], color = 'orange')
+        plt.scatter(.5,1.*v[39]/v[33], color = 'orange')
     
-    plt.ylabel('Rrs(773)/Rrs(501)')
+    plt.ylabel('Rrs(724)/Rrs(665)')
     plt.tick_params(
         axis='x',
         which='both',
@@ -509,8 +511,17 @@ if __name__ == '__main__':
     """this code runs when you run the file from the command line, as opposed to importing it as a module
     I use it for testing
     """
-    classify_pixels('pebble beach pixel group 11.txt')
-    classify_pixels_by_spectrum('pebble beach pixel group 11.txt')
+    
+    args = sys.argv[1:]
+    arg = args[1]
+    if args[0] == '1':
+        classify(arg)
+    elif args[0] == '2':
+        classify_by_spectrum(arg)
+    elif args[0] == '3':
+        classify_pixels(arg)
+    elif args[0] == '4':
+        classify_pixels_by_spectrum(arg)
     
 # Randii Wessen was our JPL tour guide
     

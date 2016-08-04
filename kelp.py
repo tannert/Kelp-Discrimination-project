@@ -400,6 +400,26 @@ def compare_endmembers():
     plt.legend(['giant kelp','bull kelp'])
     plt.show()
     
+def plot_one_endmember():
+    """generates a plot of one endmember"""
+    v = import_one_endmember('n_fort_ross.txt',3.4)
+    with open('bands.txt') as file:
+        bands = map(float,file.read().split(', '))
+        bands = bands[:138]
+    plt.plot(bands,normalize(v),color='blue')
+    plt.xlabel('Wavelength (nm)')
+    plt.ylabel('Normalized Reflectance')
+    plt.legend(['bull kelp'])
+    plt.show()
+    # for x in v[:40]:
+        # print '', int(x)
+    # print
+    # print ' ...'
+    # print ' ...'
+    # print ' ...'
+    # print
+    # print '', int(v[-1])
+    
 def compare_lots_of_endmembers():
     """plots lots of endmembers at once
     right now, this is set up to plot the band 45/band 15 ratio
@@ -419,8 +439,8 @@ def compare_lots_of_endmembers():
     for nfile in n_filenames:
         data, headers = loadPlotASCII(nfile)
         for v in data.T[2:]:
-            # plt.scatter(bands,v, color = 'blue', s = size)
-            plt.scatter(0,1.*v[39]/v[33], color = 'blue')
+            plt.plot(bands,normalize(v), color = 'blue')
+            # plt.scatter(0,1.*v[39]/v[33], color = 'blue')
             
     for sfile in s_filenames:
         data, headers = loadPlotASCII(sfile)
@@ -431,22 +451,25 @@ def compare_lots_of_endmembers():
                 # print headers[i]
             # else:
                 # plt.scatter(bands,v, color = 'green', s = size)
-            plt.scatter(1,1.*v[39]/v[33], color = 'green')
+            # plt.scatter(1,1.*v[39]/v[33], color = 'green')
+            plt.plot(bands,normalize(v), color = 'green')
 
-    data, headers = loadPlotASCII('c_monterey.txt')
-    for v in data.T[2:]:
+    # data, headers = loadPlotASCII('c_monterey.txt')
+    # for v in data.T[2:]:
         # plt.scatter(bands,v, color = 'green', s = size)
-        plt.scatter(.5,1.*v[39]/v[33], color = 'orange')
+        # plt.scatter(.5,1.*v[39]/v[33], color = 'orange')
     
-    plt.ylabel('Rrs(724)/Rrs(665)')
-    plt.tick_params(
-        axis='x',
-        which='both',
-        bottom='off',
-        top='off',
-        labelbottom='off')
+    # plt.ylabel('Rrs(724)/Rrs(665)')
+    plt.ylabel('Normalized Reflectance')
+    plt.xlabel('Wavelength (nm)')
+    # plt.tick_params(
+        # axis='x',
+        # which='both',
+        # bottom='off',
+        # top='off',
+        # labelbottom='off')
     plt.grid(axis='y')
-    plt.legend(handles = [blue_line, green_line, orange_line])
+    plt.legend(handles = [blue_line, green_line])#, orange_line])
     plt.show()
 
 def plot_kelp_against_endmemebers(filename): #BROKEN NOW since I changed all the filenames
@@ -511,17 +534,17 @@ if __name__ == '__main__':
     """this code runs when you run the file from the command line, as opposed to importing it as a module
     I use it for testing
     """
-    
-    args = sys.argv[1:]
-    arg = args[1]
-    if args[0] == '1':
-        classify(arg)
-    elif args[0] == '2':
-        classify_by_spectrum(arg)
-    elif args[0] == '3':
-        classify_pixels(arg)
-    elif args[0] == '4':
-        classify_pixels_by_spectrum(arg)
+    plot_one_endmember()
+    # args = sys.argv[1:]
+    # arg = args[1]
+    # if args[0] == '1':
+        # classify(arg)
+    # elif args[0] == '2':
+        # classify_by_spectrum(arg)
+    # elif args[0] == '3':
+        # classify_pixels(arg)
+    # elif args[0] == '4':
+        # classify_pixels_by_spectrum(arg)
     
 # Randii Wessen was our JPL tour guide
     

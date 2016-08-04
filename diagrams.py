@@ -73,6 +73,9 @@ ax.add_artist(Chat)
 plt.savefig('../plots/plot5.png')
 ax.add_artist(R)
 plt.savefig('../plots/plot6.png')
+R.remove()
+C.remove()
+plt.savefig('../plots/plot7.png')
 
 # for ii in range(0,60,5):
     # ax.view_init(elev = ii, azim = 181)
